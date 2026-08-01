@@ -1,82 +1,99 @@
-# Tamil Cloudbee AWS Lambda Demo
+# 🚀 Tamil CloudBee AWS Lambda Demo
 
+Automatically **start** and **stop** Amazon EC2 instances based on tags using **AWS Lambda**, **Amazon EventBridge Scheduler**, and **IAM**.
 
-# AWS Lambda Automation for Scheduled EC2 Start/Stop
+This project demonstrates a simple, serverless approach to automate EC2 instance scheduling without maintaining cron servers.
 
-This project demonstrates how to automatically **start** and **stop** EC2 instances based on tags using **AWS Lambda**, **IAM**, and **Amazon EventBridge Scheduler**.
+---
 
-## Architecture
+# 📌 Architecture
 
 ```
-Amazon EventBridge Scheduler
-            │
-            ▼
-      AWS Lambda Function
-            │
-            ▼
-Describe EC2 Instances by Tags
-            │
-            ▼
- Start / Stop Matching Instances
+          Amazon EventBridge Scheduler
+                     │
+                     ▼
+              AWS Lambda Function
+                     │
+                     ▼
+       Describe EC2 Instances by Tags
+                     │
+                     ▼
+          Start / Stop Matching Instances
 ```
 
 ---
 
-# Prerequisites
+# 🛠 AWS Services Used
+
+- Amazon EC2
+- AWS Lambda
+- AWS IAM
+- Amazon EventBridge Scheduler
+- Amazon CloudWatch Logs
+
+---
+
+# 📋 Prerequisites
 
 - AWS Account
-- EC2 instances
-- Appropriate IAM permissions to create IAM roles, Lambda functions, and EventBridge schedules
+- Amazon EC2 Instances
+- IAM permissions to create:
+  - IAM Policies
+  - IAM Roles
+  - Lambda Functions
+  - EventBridge Schedulers
 
 ---
 
-# Step 1: Tag Your EC2 Instances
+# 🏷 Step 1: Tag Your EC2 Instances
 
-Tag every EC2 instance that should be automatically started and stopped.
+Tag every EC2 instance that should be automatically managed.
 
-| Key | Value |
-|------|-------|
+| Tag Key | Tag Value |
+|----------|-----------|
 | AutoSchedule | True |
 | Environment | Dev |
 
-Example:
+Example
 
 ```
 AutoSchedule = True
 Environment = Dev
 ```
 
-Only instances with these tags will be managed.
+> **Note:** Only EC2 instances containing **both** tags will be managed.
 
 ---
 
-# Step 2: Create IAM Policy for Start Lambda
+# 🔐 Step 2: Create IAM Policy for Start Lambda
 
-Navigate to:
+Navigate to
 
 ```
-IAM → Policies → Create Policy
+IAM
+→ Policies
+→ Create Policy
 ```
 
-Use the following policy:
+Use the following policy.
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement":[
-        {
-            "Effect":"Allow",
-            "Action":[
-                "ec2:DescribeInstances",
-                "ec2:StartInstances"
-            ],
-            "Resource":"*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:StartInstances"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
-Save as:
+Policy Name
 
 ```
 Lambda-Start-EC2-Policy
@@ -84,27 +101,25 @@ Lambda-Start-EC2-Policy
 
 ---
 
-# Step 3: Create IAM Policy for Stop Lambda
-
-Create another policy.
+# 🔐 Step 3: Create IAM Policy for Stop Lambda
 
 ```json
 {
-    "Version":"2012-10-17",
-    "Statement":[
-        {
-            "Effect":"Allow",
-            "Action":[
-                "ec2:DescribeInstances",
-                "ec2:StopInstances"
-            ],
-            "Resource":"*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:StopInstances"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
-Save as:
+Policy Name
 
 ```
 Lambda-Stop-EC2-Policy
@@ -112,27 +127,25 @@ Lambda-Stop-EC2-Policy
 
 ---
 
-# Step 4: Create IAM Role for Start Lambda
+# 👤 Step 4: Create IAM Role for Start Lambda
 
 Navigate to
 
 ```
-IAM → Roles → Create Role
+IAM
+→ Roles
+→ Create Role
 ```
 
 Trusted Entity
 
-```
-AWS Service
-```
+- AWS Service
 
 Use Case
 
-```
-Lambda
-```
+- Lambda
 
-Attach the following policies:
+Attach Policies
 
 - AWSLambdaBasicExecutionRole
 - Lambda-Start-EC2-Policy
@@ -145,11 +158,9 @@ Lambda-Start-EC2-Role
 
 ---
 
-# Step 5: Create IAM Role for Stop Lambda
+# 👤 Step 5: Create IAM Role for Stop Lambda
 
-Repeat the above steps.
-
-Attach
+Attach Policies
 
 - AWSLambdaBasicExecutionRole
 - Lambda-Stop-EC2-Policy
@@ -162,46 +173,91 @@ Lambda-Stop-EC2-Role
 
 ---
 
-# Step 6: Create Start Lambda Function
+# 🚀 Step 6: Create Start Lambda Function
 
 Navigate to
 
 ```
-Lambda → Create Function
+AWS Lambda
+→ Create Function
 ```
 
-Configuration
-
-```
 Function Name
 
+```
 Start-EC2-Instances
+```
 
 Runtime
 
-Python 3.x
+```
+Python 3.13
+```
 
 Execution Role
 
-Use Existing Role
-
+```
 Lambda-Start-EC2-Role
 ```
 
-Paste the Python code for starting EC2 instances.
+Deploy the following code.
+
+```python
+import boto3
+
+ec2 = boto3.client("ec2")
+
+
+def lambda_handler(event, context):
+
+    response = ec2.describe_instances(
+        Filters=[
+            {
+                "Name": "tag:AutoSchedule",
+                "Values": ["True"]
+            },
+            {
+                "Name": "tag:Environment",
+                "Values": ["Dev"]
+            },
+            {
+                "Name": "instance-state-name",
+                "Values": ["stopped"]
+            }
+        ]
+    )
+
+    instance_ids = []
+
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            instance_ids.append(instance["InstanceId"])
+
+    if not instance_ids:
+        print("No stopped instances found.")
+        return
+
+    ec2.start_instances(InstanceIds=instance_ids)
+
+    print(f"Started instances: {instance_ids}")
+```
 
 Deploy the function.
 
 ---
 
-# Step 7: Create Stop Lambda Function
+# 🛑 Step 7: Create Stop Lambda Function
 
-Create another Lambda.
-
-```
 Function Name
 
+```
 Stop-EC2-Instances
+```
+
+Runtime
+
+```
+Python 3.13
 ```
 
 Execution Role
@@ -210,13 +266,55 @@ Execution Role
 Lambda-Stop-EC2-Role
 ```
 
-Paste the Python code for stopping EC2 instances.
+Deploy the following code.
+
+```python
+import boto3
+
+ec2 = boto3.client("ec2")
+
+
+def lambda_handler(event, context):
+
+    response = ec2.describe_instances(
+        Filters=[
+            {
+                "Name": "tag:AutoSchedule",
+                "Values": ["True"]
+            },
+            {
+                "Name": "tag:Environment",
+                "Values": ["Dev"]
+            },
+            {
+                "Name": "instance-state-name",
+                "Values": ["running"]
+            }
+        ]
+    )
+
+    instance_ids = []
+
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            instance_ids.append(instance["InstanceId"])
+
+    if not instance_ids:
+        print("No running instances found.")
+        return
+
+    ec2.stop_instances(InstanceIds=instance_ids)
+
+    print(f"Stopped instances: {instance_ids}")
+```
 
 Deploy the function.
 
 ---
 
-# Step 8: Test the Lambda Functions
+# ✅ Step 8: Test the Lambda Functions
+
+From the Lambda Console
 
 Click
 
@@ -228,12 +326,11 @@ Verify
 
 - Start Lambda starts stopped instances.
 - Stop Lambda stops running instances.
-
-Check CloudWatch Logs for execution details.
+- Review CloudWatch Logs for execution details.
 
 ---
 
-# Step 9: Create EventBridge Scheduler for Start
+# ⏰ Step 9: Create EventBridge Scheduler (Start)
 
 Navigate to
 
@@ -255,7 +352,7 @@ Schedule Type
 Recurring
 ```
 
-Cron Expression
+Cron Expression (Weekdays 8:00 AM UTC)
 
 ```
 cron(0 8 ? * MON-FRI *)
@@ -264,18 +361,12 @@ cron(0 8 ? * MON-FRI *)
 Target
 
 ```
-AWS Lambda
-
 Start-EC2-Instances
 ```
 
-This starts the development servers every weekday at **8:00 AM**.
-
 ---
 
-# Step 10: Create EventBridge Scheduler for Stop
-
-Create another schedule.
+# 🌙 Step 10: Create EventBridge Scheduler (Stop)
 
 Schedule Name
 
@@ -283,7 +374,7 @@ Schedule Name
 Stop-Dev-Servers
 ```
 
-Cron Expression
+Cron Expression (Weekdays 11:00 PM UTC)
 
 ```
 cron(0 23 ? * MON-FRI *)
@@ -295,13 +386,11 @@ Target
 Stop-EC2-Instances
 ```
 
-This stops the development servers every weekday at **11:00 PM**.
-
 ---
 
-# Tag-Based Filtering
+# 🏷 Tag-Based Filtering
 
-The Lambda functions only manage EC2 instances with the following tags:
+Only EC2 instances with both tags below are managed.
 
 | Tag Key | Tag Value |
 |----------|-----------|
@@ -312,45 +401,63 @@ Instances without these tags are ignored.
 
 ---
 
-# Benefits of This Solution
-
-- Serverless automation
-- No EC2 instance required for cron jobs
-- Lower operational cost
-- Fully managed by AWS
-- Easy to maintain
-- Highly available
-- CloudWatch logging
-- IAM-based security
-- Easily scalable
-- Follows AWS Well-Architected best practices
-
----
-
-# Folder Structure
+# 📁 Project Structure
 
 ```
 project/
 
 ├── start_lambda.py
 ├── stop_lambda.py
-├── README.md
+└── README.md
 ```
 
 ---
 
-# AWS Services Used
+# 🎯 Benefits
 
-- Amazon EC2
-- AWS Lambda
-- AWS IAM
-- Amazon EventBridge Scheduler
-- Amazon CloudWatch Logs
+- ✅ Serverless Automation
+- ✅ No Cron EC2 Server Required
+- ✅ Lower AWS Cost
+- ✅ Fully Managed
+- ✅ Easy to Maintain
+- ✅ Highly Available
+- ✅ CloudWatch Logging
+- ✅ IAM-Based Security
+- ✅ Scalable
+- ✅ AWS Well-Architected Best Practices
 
 ---
 
-# Author
+# 📖 Future Enhancements
 
-**TamilCloudBee**
+- Support multiple environments (Dev, QA, UAT, Prod)
+- Read schedules from AWS Systems Manager Parameter Store
+- Send notifications using Amazon SNS
+- Add Slack or Microsoft Teams notifications
+- Start/Stop based on AWS Resource Groups
+- Support Auto Scaling Groups
+- Multi-region scheduling
 
-Learn Cloud & DevOps in Simple Tamil.
+---
+
+# 👨‍💻 Author
+
+## Tamil CloudBee
+
+**Learn Cloud, DevOps, Linux & AI in Simple Tamil**
+
+If this project helped you, please ⭐ Star the repository and consider sharing it with others!
+
+---
+
+## ⭐ Support the Channel
+
+If you found this project useful,
+
+- 👍 Like
+- 💬 Comment
+- 🔄 Share
+- ⭐ Star this Repository
+- ▶️ Subscribe to **Tamil CloudBee**
+
+Happy Learning! 🚀
